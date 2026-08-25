@@ -8,6 +8,16 @@
 
 export const API_BASE = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") || "";
 
+/**
+ * Khi backend chạy sau ngrok free, mọi request có `User-Agent` của trình duyệt
+ * bị chặn lại bằng một trang cảnh báo HTML. `fetch` sẽ nhận HTML thay vì JSON và
+ * `response.json()` ném lỗi — trông hệt như backend chết. Header này bỏ qua trang
+ * đó. Chỉ gắn khi thật sự đi qua ngrok để không sinh preflight thừa ở production.
+ */
+export const bypassHeaders: Record<string, string> = API_BASE.includes("ngrok")
+  ? { "ngrok-skip-browser-warning": "true" }
+  : {};
+
 export const TOKEN_KEY = "cashback_access_token";
 export const REFRESH_KEY = "cashback_refresh_token";
 
@@ -95,6 +105,7 @@ export async function apiFetch<T = unknown>(
     headers: {
       ...(body === undefined ? {} : { "Content-Type": "application/json" }),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...bypassHeaders,
       ...headers,
     },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
