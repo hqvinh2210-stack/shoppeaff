@@ -24,6 +24,7 @@ from app.schemas.common import (
 )
 from app.services.email_service import EmailService
 from app.services.wallet_service import WalletService
+from app.utils.phone import normalize_phone
 
 router = APIRouter(tags=["auth"])
 
@@ -49,12 +50,13 @@ def register(
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
 ) -> TokenPair:
+    normalized_phone = normalize_phone(payload.phone)
     if not payload.email and not payload.phone:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cần nhập email hoặc số điện thoại")
 
     existing = (
         db.query(User)
-        .filter(or_(User.email == payload.email if payload.email else False, User.phone == payload.phone if payload.phone else False))
+        .filter(or_(User.email == payload.email if payload.email else False, User.phone == normalized_phone if normalized_phone else False))
         .one_or_none()
     )
     if existing:
@@ -63,7 +65,7 @@ def register(
     user = User(
         user_code="PENDING",
         email=payload.email,
-        phone=payload.phone,
+        phone=normalized_phone,
         password_hash=hash_password(payload.password),
         full_name=payload.full_name,
         status=UserStatus.ACTIVE.value,
@@ -81,7 +83,15 @@ def register(
 
 @router.post("/login", response_model=TokenPair)
 def login(payload: LoginRequest, db: Session = Depends(get_db)) -> TokenPair:
-    user = db.query(User).filter(or_(User.email == payload.identifier, User.phone == payload.identifier)).one_or_none()
+    normalized_phone = normalize_phone(payload.identifier)
+    user = db.query(User).filter(or_(User.email == payload.identifier, User.phone == normalized_phone)).one_or_none()
+    if user is None and normalized_phone:
+        # Tương thích với tài khoản cũ được lưu trước khi chuẩn hóa số điện thoại.
+        user = next(
+            (candidate for candidate in db.query(User).filter(User.phone.is_not(None)).all()
+             if normalize_phone(candidate.phone) == normalized_phone),
+            None,
+        )
     if not user or not user.password_hash or not verify_password(payload.password, user.password_hash):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Email/số điện thoại hoặc mật khẩu không đúng")
     if user.status != UserStatus.ACTIVE.value:

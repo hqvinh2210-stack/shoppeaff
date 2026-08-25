@@ -4,7 +4,7 @@ import type { FormEvent } from "react";
 import { useState } from "react";
 import SiteHeader from "./site-header";
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
+const API = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") || "";
 
 export default function AuthForm({ register = false }: { register?: boolean }) {
   const [email, setEmail] = useState("");
@@ -19,12 +19,14 @@ export default function AuthForm({ register = false }: { register?: boolean }) {
     event.preventDefault(); setBusy(true); setError("");
     try {
       const body = register ? { email: email || undefined, phone: phone || undefined, full_name: fullName || undefined, password } : { identifier, password };
+      if (!API) throw new Error("Frontend chưa được cấu hình địa chỉ API. Hãy đặt NEXT_PUBLIC_API_URL trong phần Environment Variables.");
       const response = await fetch(`${API}/auth/${register ? "register" : "login"}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       const data = await response.json();
       if (!response.ok) throw new Error(data.detail || "Không thể xác thực tài khoản");
       localStorage.setItem("cashback_access_token", data.access_token);
+      localStorage.setItem("cashback_refresh_token", data.refresh_token);
       window.location.href = "/dashboard";
-    } catch (submitError) { setError(submitError instanceof Error ? submitError.message : "Không thể xác thực tài khoản"); }
+    } catch (submitError) { setError(submitError instanceof TypeError ? "Không kết nối được máy chủ API. Kiểm tra NEXT_PUBLIC_API_URL và CORS_ORIGINS." : submitError instanceof Error ? submitError.message : "Không thể xác thực tài khoản"); }
     finally { setBusy(false); }
   }
 

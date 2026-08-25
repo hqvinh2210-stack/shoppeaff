@@ -6,8 +6,7 @@
  * ước trong `docs/01-ROLE-TINH-NANG-RANG-BUOC-FE-BE.md` mục 4.1–4.2.
  */
 
-export const API_BASE =
-  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
+export const API_BASE = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") || "";
 
 export const TOKEN_KEY = "cashback_access_token";
 export const REFRESH_KEY = "cashback_refresh_token";
@@ -86,6 +85,11 @@ export async function apiFetch<T = unknown>(
   path: string,
   { token, body, headers, ...init }: ApiOptions = {},
 ): Promise<T> {
+  if (!API_BASE) {
+    throw new Error(
+      "Frontend chưa được cấu hình địa chỉ API. Hãy đặt NEXT_PUBLIC_API_URL trong phần Environment Variables.",
+    );
+  }
   const response = await fetch(`${API_BASE}${path}`, {
     ...init,
     headers: {
